@@ -26,9 +26,17 @@ start:
     #  For backwards compatibility with the earliest PCs, physical
     #  address line 20 is tied low, so that addresses higher than
     #  1MB wrap around to zero by default. This code undoes this.
+
+	# 在保护模式下，为了使能所有地址位的寻址能力，需要打开A20地址线控制，即需要通过向键盘控制器 8042 发送一个命令来完成。
+	# 键盘控制器 8042 将会将它的的某个输出引脚的输出置高电平，作为 A20 地址线控制的输入。
+	# 一旦设置成功之后，内存将不会再被绕回(memory wrapping)，这样我们就可以寻址整个 286 的 16M 内存，或者是寻址 80386 级别机器的所有 4G 内存了。 
 seta20.1:
+	# 读取输入缓冲（端口 0x64）,等待 8042 键盘控制器闲置
     inb $0x64, %al                                  # Wait for not busy(8042 input buffer empty).
-    testb $0x2, %al
+    # test 指令可以当作 and 指令，只不过它不会影响操作数
+	# 相当于判断输入缓存是否为空
+	testb $0x2, %al
+	# 不空就继续
     jnz seta20.1
 
     movb $0xd1, %al                                 # 0xd1 -> port 0x64
@@ -46,18 +54,27 @@ seta20.2:
     # and segment translation that makes virtual addresses
     # identical to physical addresses, so that the
     # effective memory map does not change during the switch.
+
+	#加载全局描述符表格（GDT）寄存器
     lgdt gdtdesc
+	# cr0 中的第 0 位为 1 表示处于保护模式
+	# cr0 中的第 0 位为 0，表示处于实模式
     movl %cr0, %eax
+	# eax 的第 0 位置 1
     orl $CR0_PE_ON, %eax
+	# cr0 中的第 0 位为 1 表示处于保护模式
     movl %eax, %cr0
 
     # Jump to next instruction, but in 32-bit code segment.
     # Switches processor into 32-bit mode.
+
+	# 长跳转到 32 位代码段
     ljmp $PROT_MODE_CSEG, $protcseg
 
 .code32                                             # Assemble for 32-bit mode
 protcseg:
     # Set up the protected-mode data segment registers
+	# 将 Our data segment selector 装入 ax，设置寄存器
     movw $PROT_MODE_DSEG, %ax                       # Our data segment selector
     movw %ax, %ds                                   # -> DS: Data Segment
     movw %ax, %es                                   # -> ES: Extra Segment

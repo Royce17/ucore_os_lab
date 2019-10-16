@@ -1,3 +1,4 @@
+# 如果Make命令运行时没有指定目标，默认会执行Makefile文件的第一个目标。
 PROJ	:= challenge
 EMPTY	:=
 SPACE	:= $(EMPTY) $(EMPTY)
@@ -38,10 +39,15 @@ QEMU := $(shell if which qemu-system-i386 > /dev/null; \
 endif
 
 # eliminate default suffix rules
+################################################ WRONG HERE!!!
 .SUFFIXES: .c .S .h
+# add your own suffixes by writing a rule for .SUFFIXES that adds more prerequisites
+#https://www.gnu.org/software/make/manual/html_node/Suffix-Rules.html#Suffix-Rules
+
 
 # delete target files if there is an error (or make is interrupted)
 .DELETE_ON_ERROR:
+# If .DELETE_ON_ERROR is mentioned as a target anywhere in the makefile, then make will delete the target of a rule if it has changed and its recipe exits with a nonzero exit status, just as it does when it receives a signal. 
 
 # define compiler and flags
 ifndef  USELLVM
@@ -137,7 +143,7 @@ $(call add_files_cc,$(call listf_cc,$(KSRCDIR)),kernel,$(KCFLAGS))
 
 KOBJS	= $(call read_packet,kernel libs)
 
-# create kernel target
+# create kernel target kernel的生成依赖于KOBJS和tools/kernel.ld
 kernel = $(call totarget,kernel)
 
 $(kernel): tools/kernel.ld
@@ -152,7 +158,9 @@ $(call create_target,kernel)
 
 # -------------------------------------------------------------------
 
-# create bootblock
+# create bootblock 
+# 启动扇区的编译，过程与内核差不多唯一的区别是需要对编译后的启动扇区进行签名，即有效启动扇区，最后字节为0x55aa。
+# bootblock 依赖于bootasm.o、bootmain.o、sign 
 bootfiles = $(call listf_cc,boot)
 $(foreach f,$(bootfiles),$(call cc_compile,$(f),$(CC),$(CFLAGS) -Os -nostdinc))
 
@@ -169,13 +177,26 @@ $(call create_target,bootblock)
 
 # -------------------------------------------------------------------
 
+# build a 512 bytes boot sector （在 sign.c 中）
+# boot sector 最后两个字节为0x55AA
 # create 'sign' tools
 $(call add_files_host,tools/sign.c,sign,sign)
 $(call create_target_host,sign,sign)
 
 # -------------------------------------------------------------------
 
+# 一个被系统认为是符合规范的硬盘主引导扇区的特征是什么？
+# size of boot sector is 512B, 
+
 # create ucore.img
+# totarget 函数在 tools/function.mk 文件中，定义如下：
+	# totarget = $(addprefix $(BINDIR)$(SLASH),$(1)) #输出最终的目标文件完整路径名
+	# Makefile 还可以使用函数，格式如下。
+		#$(function arguments)
+		# 或者
+		#${function arguments}
+# 这里将 ucore.img 传入 totarget 函数，Prerequisites 有 kernel 和 bootblock
+# 把编译出的二进制文件和bootloader都写进一个大文件中，用来模拟硬盘。使用linux下dd块命令，用于复制文件并对原文件的内容进行转换和格式化处理。
 UCOREIMG	:= $(call totarget,ucore.img)
 
 $(UCOREIMG): $(kernel) $(bootblock)

@@ -72,6 +72,7 @@ readseg(uintptr_t va, uint32_t count, uint32_t offset) {
     va -= offset % SECTSIZE;
 
     // translate from bytes to sectors; kernel starts at sector 1
+	// 0 扇区被引导占用，ELF 文件从 1 开始
     uint32_t secno = (offset / SECTSIZE) + 1;
 
     // If this is too slow, we could read lots of sectors at a time.
@@ -86,17 +87,21 @@ readseg(uintptr_t va, uint32_t count, uint32_t offset) {
 void
 bootmain(void) {
     // read the 1st page off disk
+	// 读取 512 * 8 = 4096Bytes 到 ELFHDR（0x10000）
     readseg((uintptr_t)ELFHDR, SECTSIZE * 8, 0);
 
     // is this a valid ELF?
+	// 通过储存在头部的幻数判断是否是合法的 ELF 文件，ELF 的文件头定义在 elf.h 中
     if (ELFHDR->e_magic != ELF_MAGIC) {
         goto bad;
     }
 
-    struct proghdr *ph, *eph;
+	// program header 描述与程序执行直接相关的目标文件结构信息，用来在文件中定位各个段的映像，同时包含其他一些用来为程序创建进程映像所必需的信息。
+    // 实验手册 P117
+	// 可执行文件的程序头部是 一个 program header 结构的数组， 每个结构描述了一个段或者系统准备程序执行所必需的其它信息。目标文件的 “段” 包含一个或者多个 “节区”（section） ，也就是“段内容（Segment Contents）” 。
+	struct proghdr *ph, *eph;
 
     // load each program segment (ignores ph flags)
-    ph = (struct proghdr *)((uintptr_t)ELFHDR + ELFHDR->e_phoff);
     eph = ph + ELFHDR->e_phnum;
     for (; ph < eph; ph ++) {
         readseg(ph->p_va & 0xFFFFFF, ph->p_memsz, ph->p_offset);
@@ -104,6 +109,7 @@ bootmain(void) {
 
     // call the entry point from the ELF header
     // note: does not return
+	//根据 ELF 头表中的入口信息，找到内核的入口并开始运行 
     ((void (*)(void))(ELFHDR->e_entry & 0xFFFFFF))();
 
 bad:
