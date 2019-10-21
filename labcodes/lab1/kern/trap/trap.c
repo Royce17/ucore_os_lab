@@ -370,15 +370,30 @@ trap_dispatch(struct trapframe *tf) {
         cprintf("serial [%03d] %c\n", c, c);
 
         break;
-
-    case IRQ_OFFSET + IRQ_KBD:
-
-        c = cons_getc();
-
-        cprintf("kbd [%03d] %c\n", c, c);
-
-        break;
-
+		
+//    case IRQ_OFFSET + IRQ_KBD:
+//        c = cons_getc();
+//        cprintf("kbd [%03d] %c\n", c, c);
+//        break;
+	case IRQ_OFFSET + IRQ_KBD:
+        	c = cons_getc();
+        	cprintf("kbd [%03d] %c\n", c, c);
+        	if (c == '0') {
+            		if (tf->tf_cs != KERNEL_CS) {
+                		tf->tf_cs = KERNEL_CS;
+                		tf->tf_ds = tf->tf_ss = tf->tf_es = KERNEL_DS;
+                		tf->tf_eflags &= ~FL_IOPL_MASK;
+            			}
+            		print_trapframe(tf);
+        	}
+        	if (c == '3') {
+            		if (tf->tf_cs != USER_CS) {
+                		tf->tf_cs = USER_CS;
+                		tf->tf_ds = tf->tf_ss = tf->tf_es = USER_DS;
+                		tf->tf_eflags |= FL_IOPL_MASK;
+            			}
+            		print_trapframe(tf);
+        	}	
 	//LAB1 CHALLENGE 1 : YOUR CODE you should modify below codes.
 	case T_SWITCH_TOU:
 		if (tf->tf_cs != USER_CS) {
@@ -407,6 +422,7 @@ trap_dispatch(struct trapframe *tf) {
 			*((uint32_t*)tf - 1) = (uint32_t)switchu2k;
 		}
 		break;
+
 
     case IRQ_OFFSET + IRQ_IDE1:
 

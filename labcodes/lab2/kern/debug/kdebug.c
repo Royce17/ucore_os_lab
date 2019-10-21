@@ -293,17 +293,46 @@ read_eip(void) {
  * */
 void
 print_stackframe(void) {
-     /* LAB1 YOUR CODE : STEP 1 */
+     /* LAB1 1711342 - liji : STEP 1 */
      /* (1) call read_ebp() to get the value of ebp. the type is (uint32_t);
       * (2) call read_eip() to get the value of eip. the type is (uint32_t);
       * (3) from 0 .. STACKFRAME_DEPTH
       *    (3.1) printf value of ebp, eip
-      *    (3.2) (uint32_t)calling arguments [0..4] = the contents in address (uint32_t)ebp +2 [0..4]
+      *    (3.2) (uint32_t)calling arguments [0..4] = the contents in address (unit32_t)ebp +2 [0..4]
       *    (3.3) cprintf("\n");
       *    (3.4) call print_debuginfo(eip-1) to print the C calling function name and line number, etc.
       *    (3.5) popup a calling stackframe
       *           NOTICE: the calling funciton's return addr eip  = ss:[ebp+4]
       *                   the calling funciton's ebp = ss:[ebp]
       */
-}
 
+	//读取 ebp 和 eip
+	uint32_t ebp, eip;
+	ebp = read_ebp();
+	eip = read_eip();
+	
+	// GCC 默认使用 C99 标准编译。所以把 i 的声明分离出 for 循环
+	int i = 0;
+	for(i = 0; ebp != 0 && i < STACKFRAME_DEPTH; ++i)
+	{
+		// printf("0x%08x", n) expects an unsigned int as argument.
+		cprintf("The value of ebp:0x%08x eip:0x%08x", ebp, eip);
+		// 先把 ebp 强制转换为 uint32_t* 类型，+2 相当于往上 2*4=8 个字节，因为指针的大小都为 4B
+		uint32_t* arg   = (uint32_t*)ebp + 2;
+		cprintf(" arg:");
+		
+		int j = 0;
+		for(j = 0; j < 4; ++j)
+		{
+			cprintf("0x%08x ", arg + j);
+		}
+		cprintf("\n");
+		// print the C calling function name and line number, etc.
+		print_debuginfo(eip - 1);
+		// popup a calling stackframe
+			//	NOTICE: the calling funciton's return addr eip  = ss:[ebp+4]
+			//			the calling funciton's ebp = ss:[ebp]
+		eip = ((uint32_t*)ebp)[1];
+		ebp = ((uint32_t*)ebp)[0];
+	}
+}
