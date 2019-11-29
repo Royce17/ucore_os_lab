@@ -14,9 +14,10 @@ int kern_init(void) __attribute__((noreturn));
 void grade_backtrace(void);
 static void lab1_switch_test(void);
 
+//先调用 lab2/kern/init/entry.S 中的 kern_entry() 函数，再调用 kern_init().
 int
 kern_init(void) {
-    extern char edata[], end[];
+    extern char edata[], end[];// edata(数据段截止处地址)、end(ucore截止处地址)
     memset(edata, 0, end - edata);
 
     cons_init();                // init the console
@@ -26,7 +27,7 @@ kern_init(void) {
 
     print_kerninfo();
 
-    grade_backtrace();
+    grade_backtrace();// 检查 lab1 的实验结果
 
     pmm_init();                 // init physical memory management
 

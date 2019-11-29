@@ -304,12 +304,12 @@ volatile unsigned int pgfault_num=0;
 int
 do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
     int ret = -E_INVAL;
-    //try to find a vma which include addr
-    struct vma_struct *vma = find_vma(mm, addr);
+    //try to find a vma which include addr // the virtual continuous memory area(vma)
+    struct vma_struct *vma = find_vma(mm, addr); 
 
     pgfault_num++;
     //If the addr is in the range of a mm's vma?
-    if (vma == NULL || vma->vm_start > addr) {
+    if (vma == NULL || vma->vm_start > addr) {// 看看地址属不属于某个 vma，在 vma 的范围之内，说明这是一个合法的地址
         cprintf("not valid addr %x, and  can not find it in vma\n", addr);
         goto failed;
     }
@@ -353,7 +353,7 @@ do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
     * Some Useful MACROs and DEFINEs, you can use them in below implementation.
     * MACROs or Functions:
     *   get_pte : get an pte and return the kernel virtual address of this pte for la
-    *             if the PT contians this pte didn't exist, alloc a page for PT (notice the 3th parameter '1')
+    *             if the PT contains this pte didn't exist, alloc a page for PT (notice the 3th parameter '1')
     *   pgdir_alloc_page : call alloc_page & page_insert functions to allocate a page size memory & setup
     *             an addr map pa<--->la with linear address la and the PDT pgdir
     * DEFINES:
@@ -364,6 +364,40 @@ do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
     *   mm->pgdir : the PDT of these vma
     *
     */
+	/*LAB3 EXERCISE 1: YOUR CODE*/
+	ptep = get_pte(mm->pgdir, addr, 1);             //(1) try to find a pte, if pte's PT(Page Table) isn't existed, then create a PT.
+	if (ptep == NULL)
+	{
+		cprintf("get_pte failed in lab3 do_pgfault\r\n");
+		goto failed;
+	}
+	if (*ptep == 0) {
+		pgdir_alloc_page(mm->pgdir, addr, perm);	//(2) if the phy addr isn't exist, then alloc a page & map the phy addr with logical addr
+	}
+	else {
+		/*LAB3 EXERCISE 2: YOUR CODE
+		* Now we think this pte is a  swap entry, we should load data from disk to a page with phy addr,
+		* and map the phy addr with logical addr, trigger swap manager to record the access situation of this page.
+		*
+		*  Some Useful MACROs and DEFINEs, you can use them in below implementation.
+		*  MACROs or Functions:
+		*    swap_in(mm, addr, &page) : alloc a memory page, then according to the swap entry in PTE for addr,
+		*                               find the addr of disk page, read the content of disk page into this memroy page
+		*    page_insert ： build the map of phy addr of an Page with the linear addr la
+		*    swap_map_swappable ： set the page swappable
+		*/
+		if (swap_init_ok) {
+			struct Page* page = NULL;
+			swap_in(mm, addr, &page);//(1）According to the mm AND addr, try to load the content of right disk page
+									//    into the memory which page managed.
+			page_insert(mm->pgdir, page, addr, perm);//(2) According to the mm, addr AND page, setup the map of phy addr <---> logical addr
+			swap_map_swappable(mm, addr, page, 1);//(3) make the page swappable.
+		}
+		else {
+			cprintf("no swap_init_ok but ptep is %x, failed\n", *ptep);
+			goto failed;
+		}
+	}
 #if 0
     /*LAB3 EXERCISE 1: YOUR CODE*/
     ptep = ???              //(1) try to find a pte, if pte's PT(Page Table) isn't existed, then create a PT.
